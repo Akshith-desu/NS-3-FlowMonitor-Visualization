@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NS-3 FlowMonitor Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .upload-section {
+            padding: 40px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 20px 0;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-button {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            border: none;
+        }
+
+        .file-input-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .results-container {
+            padding: 40px;
+            display: none;
+        }
+
+        .network-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .info-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .info-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .flow-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #3498db;
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .chart-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-card h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .canvas-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .flow-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .flow-table th,
+        .flow-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .flow-table th {
+            background: #3498db;
+            color: white;
+            font-weight: 600;
+        }
+
+        .flow-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-good { background: #27ae60; }
+        .status-warning { background: #f39c12; }
+        .status-error { background: #e74c3c; }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #fcc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>NS-3 Network Simulation Analyzer</h1>
+            <p>Upload your FlowMonitor XML file to analyze network performance</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="file-input-wrapper">
+                <input type="file" id="xmlFile" class="file-input" accept=".xml" />
+                <label for="xmlFile" class="file-input-button">
+                    📁 Choose XML File
+                </label>
+            </div>
+            <p style="margin-top: 15px; color: #666;">Select your NS-3 FlowMonitor XML output file</p>
+        </div>
+
+        <div id="results" class="results-container">
+            <div class="network-info">
+                <div class="info-card">
+                    <h3>🌐 Network Topology</h3>
+                    <div id="topologyInfo">Analyzing...</div>
+                </div>
+                <div class="info-card">
+                    <h3>📊 Simulation Summary</h3>
+                    <div id="simulationInfo">Analyzing...</div>
+                </div>
+            </div>
+
+            <div class="flow-summary" id="flowSummary">
+                <!-- Metric cards will be populated here -->
+            </div>
+
+            <div class="charts-container">
+                <div class="chart-card">
+                    <h3>📈 Throughput by Flow</h3>
+                    <div class="canvas-container">
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>⏱️ Average Delay by Flow</h3>
+                    <div class="canvas-container">
+                        <canvas id="delayChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>📦 Packet Loss Analysis</h3>
+                    <div class="canvas-container">
+                        <canvas id="lossChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>🔄 Jitter Analysis</h3>
+                    <div class="canvas-container">
+                        <canvas id="jitterChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card" style="margin-top: 30px;">
+                <h3>📋 Flow Details</h3>
+                <table class="flow-table" id="flowTable">
+                    <thead>
+                        <tr>
+                            <th>Flow ID</th>
+                            <th>Source → Destination</th>
+                            <th>Throughput (Mbps)</th>
+                            <th>Avg Delay (ms)</th>
+                            <th>Jitter (ms)</th>
+                            <th>Loss Rate (%)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="flowTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="errorContainer"></div>
+    </div>
+
+    <script>
+        let flowData = [];
+        let addressMap = {};
+
+        document.getElementById('xmlFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        parseXML(e.target.result);
+                    } catch (error) {
+                        showError('Error parsing XML file: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function parseXML(xmlText) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+            
+            if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                throw new Error('Invalid XML format');
+            }
+
+            // Parse flow classifier to get address mappings
+            const flowClassifier = xmlDoc.querySelector('Ipv4FlowClassifier');
+            if (flowClassifier) {
+                const flows = flowClassifier.querySelectorAll('Flow');
+                flows.forEach(flow => {
+                    const flowId = flow.getAttribute('flowId');
+                    const src = flow.getAttribute('sourceAddress');
+                    const dst = flow.getAttribute('destinationAddress');
+                    const srcPort = flow.getAttribute('sourcePort');
+                    const dstPort = flow.getAttribute('destinationPort');
+                    const protocol = flow.getAttribute('protocol');
+                    const protocolName = protocol === '6' ? 'TCP' : protocol === '17' ? 'UDP' : `Protocol ${protocol}`;
+                    addressMap[flowId] = {
+                        source: `${src}:${srcPort}`,
+                        destination: `${dst}:${dstPort}`,
+                        protocol: protocolName
+                    };
+                });
+            }
+
+            // Parse flow stats
+            const flowStats = xmlDoc.querySelectorAll('FlowStats > Flow');
+            flowData = [];
+
+            flowStats.forEach(flow => {
+                const flowId = flow.getAttribute('flowId');
+                const info = addressMap[flowId] || {};
+                
+                // Extract numeric destination port
+                const dstPort = parseInt((info.destination||'').split(':').pop(), 10);
+                // Only keep TCP application flows on ports 8080–8089
+                if (isNaN(dstPort) || dstPort < 8080 || dstPort > 8089) {
+                    return; 
+                }
+
+                const txBytes = parseInt(flow.getAttribute('txBytes')) || 0;
+                const rxBytes = parseInt(flow.getAttribute('rxBytes')) || 0;
+                const txPackets = parseInt(flow.getAttribute('txPackets')) || 0;
+                const rxPackets = parseInt(flow.getAttribute('rxPackets')) || 0;
+                const lostPackets = parseInt(flow.getAttribute('lostPackets')) || 0;
+                const delaySum = parseFloat(flow.getAttribute('delaySum').replace(/[\+ns]/g,'')) || 0;
+                const jitterSum = parseFloat(flow.getAttribute('jitterSum').replace(/[\+ns]/g,'')) || 0;
+                const t0 = parseFloat(flow.getAttribute('timeFirstTxPacket').replace(/[\+ns]/g,'')) || 0;
+                const t1 = parseFloat(flow.getAttribute('timeLastRxPacket').replace(/[\+ns]/g,'')) || t0;
+
+                const duration = (t1 - t0) / 1e9; // seconds
+                const throughput = duration > 0 ? (rxBytes * 8) / (duration * 1e6) : 0; // Mbps
+                const avgDelay = rxPackets > 0 ? (delaySum / rxPackets) / 1e6 : 0; // ms
+                const avgJitter = rxPackets > 1 ? (jitterSum / (rxPackets-1)) / 1e6 : 0; // ms
+                const lossRate = txPackets > 0 ? (lostPackets / txPackets) * 100 : 0;
+
+                flowData.push({
+                    flowId,
+                    throughput,
+                    avgDelay,
+                    avgJitter,
+                    lossRate,
+                    txBytes,
+                    rxBytes,
+                    txPackets,
+                    rxPackets,
+                    lostPackets,
+                    addresses: info
+                });
+            });
+
+            displayResults();
+        }
+
+        function displayResults() {
+            document.getElementById('results').style.display = 'block';
+            
+            updateNetworkInfo();
+            updateFlowSummary();
+            createCharts();
+            createFlowTable();
+        }
+
+        function updateNetworkInfo() {
+            const totalFlows = flowData.length;
+            const avgThroughput = flowData.reduce((sum, flow) => sum + flow.throughput, 0) / totalFlows;
+            const totalPackets = flowData.reduce((sum, flow) => sum + flow.txPackets, 0);
+            const totalLostPackets = flowData.reduce((sum, flow) => sum + flow.lostPackets, 0);
+
+            document.getElementById('topologyInfo').innerHTML = `
+                <p><strong>Total Flows:</strong> ${totalFlows}</p>
+                <p><strong>Protocol:</strong> TCP (Port 6)</p>
+                <p><strong>Address Range:</strong> 10.1.x.x network</p>
+            `;
+
+            document.getElementById('simulationInfo').innerHTML = `
+                <p><strong>Total Packets:</strong> ${totalPackets.toLocaleString()}</p>
+                <p><strong>Average Throughput:</strong> ${avgThroughput.toFixed(2)} Mbps</p>
+                <p><strong>Overall Loss Rate:</strong> ${((totalLostPackets/totalPackets)*100).toFixed(3)}%</p>
+            `;
+        }
+
+        function updateFlowSummary() {
+            const container = document.getElementById('flowSummary');
+            const totalThroughput = flowData.reduce((sum, flow) => sum + flow.throughput, 0);
+            const maxDelay = Math.max(...flowData.map(flow => flow.avgDelay));
+            const totalLoss = flowData.reduce((sum, flow) => sum + flow.lostPackets, 0);
+            const avgJitter = flowData.reduce((sum, flow) => sum + flow.avgJitter, 0) / flowData.length;
+
+            container.innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-value">${totalThroughput.toFixed(1)}</div>
+                    <div class="metric-label">Total Throughput (Mbps)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${maxDelay.toFixed(2)}</div>
+                    <div class="metric-label">Max Delay (ms)</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${totalLoss}</div>
+                    <div class="metric-label">Total Lost Packets</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">${avgJitter.toFixed(3)}</div>
+                    <div class="metric-label">Average Jitter (ms)</div>
+                </div>
+            `;
+        }
+
+        function createCharts() {
+            // Throughput Chart
+            const throughputCtx = document.getElementById('throughputChart').getContext('2d');
+            new Chart(throughputCtx, {
+                type: 'bar',
+                data: {
+                    labels: flowData.map(flow => `Flow ${flow.flowId}`),
+                    datasets: [{
+                        label: 'Throughput (Mbps)',
+                        data: flowData.map(flow => flow.throughput),
+                        backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Throughput (Mbps)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Delay Chart
+            const delayCtx = document.getElementById('delayChart').getContext('2d');
+            new Chart(delayCtx, {
+                type: 'line',
+                data: {
+                    labels: flowData.map(flow => `Flow ${flow.flowId}`),
+                    datasets: [{
+                        label: 'Average Delay (ms)',
+                        data: flowData.map(flow => flow.avgDelay),
+                        backgroundColor: 'rgba(231, 76, 60, 0.2)',
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Delay (ms)'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Loss Chart - Horizontal bar chart
+            const lossCtx = document.getElementById('lossChart').getContext('2d');
+            new Chart(lossCtx, {
+                type: 'bar',
+                data: {
+                    labels: flowData.map(flow => `Flow ${flow.flowId}`),
+                    datasets: [{
+                        label: 'Lost Packets',
+                        data: flowData.map(flow => flow.lostPackets),
+                        backgroundColor: flowData.map((flow, index) => {
+                            const colors = ['#e74c3c', '#f39c12', '#f1c40f', '#27ae60', '#3498db', '#9b59b6'];
+                            return colors[index % colors.length];
+                        }),
+                        borderColor: flowData.map((flow, index) => {
+                            const colors = ['#c0392b', '#d68910', '#d4ac0d', '#229954', '#2980b9', '#8e44ad'];
+                            return colors[index % colors.length];
+                        }),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Lost Packets'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Jitter Chart - Changed to column bar chart
+            const jitterCtx = document.getElementById('jitterChart').getContext('2d');
+            new Chart(jitterCtx, {
+                type: 'bar',
+                data: {
+                    labels: flowData.map(flow => `Flow ${flow.flowId}`),
+                    datasets: [{
+                        label: 'Average Jitter (ms)',
+                        data: flowData.map(flow => flow.avgJitter),
+                        backgroundColor: flowData.map((flow, index) => {
+                            // Use gradient-like colors for better visualization
+                            const colors = ['rgba(155, 89, 182, 0.8)', 'rgba(142, 68, 173, 0.8)', 'rgba(129, 47, 164, 0.8)', 'rgba(116, 26, 155, 0.8)'];
+                            return colors[index % colors.length];
+                        }),
+                        borderColor: flowData.map((flow, index) => {
+                            const colors = ['rgba(155, 89, 182, 1)', 'rgba(142, 68, 173, 1)', 'rgba(129, 47, 164, 1)', 'rgba(116, 26, 155, 1)'];
+                            return colors[index % colors.length];
+                        }),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Jitter (ms)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createFlowTable() {
+            const tbody = document.getElementById('flowTableBody');
+            tbody.innerHTML = '';
+
+            flowData.forEach(flow => {
+                const row = tbody.insertRow();
+                const status = getFlowStatus(flow);
+                
+                row.innerHTML = `
+                    <td>Flow ${flow.flowId}</td>
+                    <td>${flow.addresses.source} → ${flow.addresses.destination}</td>
+                    <td>${flow.throughput.toFixed(2)}</td>
+                    <td>${flow.avgDelay.toFixed(3)}</td>
+                    <td>${flow.avgJitter.toFixed(6)}</td>
+                    <td>${flow.lossRate.toFixed(3)}</td>
+                    <td><span class="status-indicator ${status.class}"></span>${status.text}</td>
+                `;
+            });
+        }
+
+        function getFlowStatus(flow) {
+            if (flow.lossRate > 1) return { class: 'status-error', text: 'Poor' };
+            if (flow.lossRate > 0.1 || flow.avgDelay > 100) return { class: 'status-warning', text: 'Fair' };
+            return { class: 'status-good', text: 'Good' };
+        }
+
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+    </script>
+</body>
+</html>
