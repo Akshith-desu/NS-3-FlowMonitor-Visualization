@@ -31,7 +31,7 @@ A lightweight, browser-based tool for parsing NS-3 FlowMonitor XML output and vi
 ### Prerequisites
 
 - Modern web browser (Chrome, Firefox, Edge, Safari)
-- NS-3 FlowMonitor XML output (e.g. `scratch/hello_flowmon.xml`)
+- NS-3 FlowMonitor XML output (e.g. `hello_flowmon.xml`)
 
 ### Installation
 
